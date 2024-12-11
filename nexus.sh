@@ -15,6 +15,17 @@ ARCH=$(uname -m)  # 获取当前架构（如 x86_64）
 OS=$(uname -s)    # 获取操作系统（如 Linux 或 Darwin）
 REPO_BASE="https://github.com/nexus-xyz/network-api/raw/refs/tags/0.4.2/clients/cli"
 
+# 确保 NEXUS_HOME 目录存在
+mkdir -p "$NEXUS_HOME"  # 创建 Nexus 目录
+
+# 检查curl是否安装
+check_curl_installed() {
+    if ! command -v curl &> /dev/null; then
+        echo -e "${RED}curl 未安装，请安装curl后再运行脚本${NC}"
+        exit 1
+    fi
+}
+
 # 检查OpenSSL版本（仅适用于Linux）
 check_openssl_version() {
     if [ "$OS" = "Linux" ]; then
@@ -61,6 +72,7 @@ setup_directories() {
 
 # 检查依赖项（包括OpenSSL和tmux）
 check_dependencies() {
+    check_curl_installed   # 检查curl是否安装
     check_openssl_version || exit 1  # 检查OpenSSL版本
 
     # 如果tmux未安装，尝试安装tmux
@@ -184,45 +196,8 @@ check_status() {
     fi
 }
 
-# 清理程序
-cleanup() {
-    echo -e "\n${YELLOW}正在清理...${NC}"
-    exit 0
-}
-
-# 捕捉 SIGINT 和 SIGTERM 信号进行清理
-trap cleanup SIGINT SIGTERM
-
-# 主菜单
-while true; do
-    echo -e "\n${YELLOW}=== Nexus Prover 管理工具 ===${NC}"
-    echo -e "${GREEN}Twitter: ${NC}https://x.com/zerah_eth"
-    echo -e "${GREEN}Github: ${NC}https://github.com/qzz0518/nexus-run"
-    echo -e "${GREEN}推荐工具: ${NC}SOL 回收神器 - https://solback.app/\n"
-
-    echo "1. 安装并启动 Nexus"
-    echo "2. 查看当前运行状态"
-    echo "3. 退出"
-
-    read -p "请选择操作 [1-3]: " choice
-    case $choice in
-        1)
-            setup_directories
-            check_dependencies
-            download_files
-            start_prover
-            ;;
-        2)
-            check_status
-            ;;
-        3)
-            echo -e "\n${GREEN}感谢使用！${NC}"
-            echo -e "${YELLOW}更多工具请关注 Twitter: ${NC}https://x.com/zerah_eth"
-            echo -e "${YELLOW}SOL 代币回收工具: ${NC}https://solback.app/\n"
-            cleanup
-            ;;
-        *)
-            echo -e "${RED}无效的选择${NC}"
-            ;;
-    esac
-done
+# 主流程
+check_dependencies
+setup_directories
+download_files
+start_prover
