@@ -181,20 +181,9 @@ start_prover() {
 
     # 启动tmux会话并运行Prover
     tmux new-session -d -s "$SESSION_NAME" "cd '$NEXUS_HOME' && ./prover beta.orchestrator.nexus.xyz"
-    echo -e "${GREEN}Prover 已启动，选择 2 可查看运行日志${NC}"
+    echo -e "${GREEN}Prover 已启动，运行：tmux attach-session -t "nexus-prover 查看日志"${NC}"
 }
 
-# 检查Prover状态并打开日志
-check_status() {
-    if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
-        echo -e "${GREEN}Prover 正在运行中. 正在打开日志窗口...${NC}"
-        echo -e "${YELLOW}提示: 查看完成后直接关闭终端即可，不要使用 Ctrl+C${NC}"
-        sleep 2
-        tmux attach-session -t "$SESSION_NAME"
-    else
-        echo -e "${RED}Prover 未运行${NC}"
-    fi
-}
 
 # 主流程
 check_dependencies
