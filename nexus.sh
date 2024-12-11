@@ -35,8 +35,9 @@ function install_node() {
 
     # 进入 /root/.nexus/ 目录并删除原来密钥文件
     echo "正在准备密钥文件..."
-    cd /root/.nexus/ || exit
-    rm -rf prover-id
+    cd
+    mkdir .nexus
+    cd .nexus
 
     # 复制导入的密钥文件
     cp /root/nexus/prover-id /root/.nexus/prover-id
