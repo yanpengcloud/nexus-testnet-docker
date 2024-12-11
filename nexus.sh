@@ -172,8 +172,8 @@ start_prover() {
         fi
     fi
 
-    # 使用 tmux 启动 Prover 会话
-    tmux new-session -d -s "$SESSION_NAME" "cd '$NEXUS_HOME' && ./prover beta.orchestrator.nexus.xyz"
+    # 使用 screen 启动 Prover 会话
+    screen -dmS "$SESSION_NAME" bash -c "cd '$NEXUS_HOME' && ./prover beta.orchestrator.nexus.xyz"
     echo -e "${GREEN}Prover 已启动，选择2可查看运行日志${NC}"
 }
 
