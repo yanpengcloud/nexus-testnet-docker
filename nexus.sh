@@ -42,7 +42,7 @@ function install_node() {
     cd .nexus
 
     # 复制导入的密钥文件
-    cp /root/nexus/prover-id /root/.nexus/prover-id
+    cp /root/nexus/prover-id/id.txt /root/.nexus/prover-id
 
     # 创建一个新的 screen 会话并运行 Nexus 节点安装命令
     echo "正在启动 Nexus 节点..."
