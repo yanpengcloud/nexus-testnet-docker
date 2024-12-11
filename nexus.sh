@@ -157,7 +157,7 @@ start_prover() {
     cd "$NEXUS_HOME" || exit
 
     # 检查 Prover ID 是否存在
-        cp /root/nexus/prover-id cd /root/.nexus/prover-id
+        cp /root/nexus/prover-id  /root/.nexus/prover-id
         
     if [ ! -f "$PROVER_ID_FILE" ]; then
         echo -e "${YELLOW}请输入您的 Prover ID${NC}"
