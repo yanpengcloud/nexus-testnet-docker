@@ -2,6 +2,8 @@
 
 # 节点安装功能
 function install_node() {
+    # 跳过询问
+    sudo needrestart -y    
     # 更新并升级Ubuntu软件包
     echo "正在更新软件包列表..."
     sudo apt-get update
