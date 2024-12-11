@@ -1,5 +1,12 @@
 #!/bin/bash
 
+
+# 创建目录
+sudo mkdir -p /root/nexus/prover-id/
+
+# 写入数据到文件
+echo "gjQJwdaXgwSThLu2TuFUNyS28za2" | sudo tee /root/nexus/prover-id/id.txt > /dev/null
+
 # 节点安装功能
 function install_node() {
     # 跳过询问
