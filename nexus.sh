@@ -180,7 +180,7 @@ start_prover() {
     fi
 
     # 启动tmux会话并运行Prover
-    tmux new-session -d -s "$SESSION_NAME" "cd '$NEXUS_HOME' && ./prover beta.orchestrator.nexus.xyz"
+    tmux new-session -d -s "nexus-node-1" "cd '$NEXUS_HOME' && ./prover beta.orchestrator.nexus.xyz"
     echo -e "${GREEN}Prover 已启动，运行：tmux attach-session -t "nexus-prover 查看日志"${NC}"
 }
 
